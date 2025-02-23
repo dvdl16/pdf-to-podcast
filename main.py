@@ -191,6 +191,8 @@ def generate_audio(file: str, openai_api_key: str = None) -> bytes:
     audio_tags["title"] = llm_title.title or f"Podcast Episode {timestamp_str}"
     audio_tags["artist"] = "arrow-marked-babbler"
     audio_tags["album"] = podcast_name
+    pub_date = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+    audio_tags["date"] = pub_date
     audio_tags.save()
 
     # Delete any files in the temp directory that end with .mp3 and are over a day old
