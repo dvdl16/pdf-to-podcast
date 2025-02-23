@@ -177,6 +177,9 @@ def generate_audio(file: str, openai_api_key: str = None) -> bytes:
     shutil.copy(temporary_file.name, permanent_file_path)
     logger.info(f"Copied to permanent file path: {permanent_file_path}")
 
+    # Set file permissions to 0644 (rw-r--r--)
+    os.chmod(permanent_file_path, 0o644)
+
     # Add basic ID3 metadata
     try:
         audio_tags = EasyID3(permanent_file_path)
