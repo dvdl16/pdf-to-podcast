@@ -168,7 +168,8 @@ def generate_audio(file: str, openai_api_key: str = None) -> bytes:
     temporary_file.close()
 
     # Prepare permanent storage
-    podcast_storage_directory = "./podcast_storage/"
+    podcast_name = "Yolandi's Law PDFs"
+    podcast_storage_directory = f"./podcast_storage/{podcast_name}/"
     os.makedirs(podcast_storage_directory, exist_ok=True)
     timestamp_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     yearmonth_string = datetime.datetime.now().strftime("%Y%m")
@@ -189,7 +190,7 @@ def generate_audio(file: str, openai_api_key: str = None) -> bytes:
         audio_tags = EasyID3(permanent_file_path)
     audio_tags["title"] = llm_title.title or f"Podcast Episode {timestamp_str}"
     audio_tags["artist"] = "arrow-marked-babbler"
-    audio_tags["album"] = yearmonth_string
+    audio_tags["album"] = podcast_name
     audio_tags.save()
 
     # Delete any files in the temp directory that end with .mp3 and are over a day old
