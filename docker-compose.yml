@@ -10,8 +10,24 @@ services:
     volumes:
       - pdf_to_podcast_gradio:/app/.gradio
       - pdf_to_podcast_gradio_cache:/app/gradio_cached_examples
-      - ./pdf_to_podcast_storage:/app/podcast_storage
+      - podcast_storage:/app/podcast_storage
+
+  audiobookshelf:
+    image: ghcr.io/advplyr/audiobookshelf:2.19.4
+    ports:
+      - 13378:80
+    volumes:
+      - audiobooks_storage:/audiobooks
+      - podcast_storage:/podcasts
+      - audiobookshelf_config:/config
+      - audiobookshelf_metadata:/metadata
+    environment:
+      - TZ=Africa/Johannesburg
 
 volumes:
   pdf_to_podcast_gradio:
   pdf_to_podcast_gradio_cache:
+  podcast_storage:
+  audiobooks_storage:
+  audiobookshelf_config:
+  audiobookshelf_metadata:
