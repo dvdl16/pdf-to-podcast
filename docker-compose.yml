@@ -10,6 +10,7 @@ services:
     volumes:
       - pdf_to_podcast_gradio:/app/.gradio
       - pdf_to_podcast_gradio_cache:/app/gradio_cached_examples
+      - ./pdf_to_podcast_storage:/app/podcast_storage
 
 volumes:
   pdf_to_podcast_gradio:

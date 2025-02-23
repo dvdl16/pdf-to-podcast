@@ -2,6 +2,8 @@ import concurrent.futures as cf
 import glob
 import io
 import os
+import shutil
+import datetime
 import time
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -17,6 +19,8 @@ from promptic import llm
 from pydantic import BaseModel, ValidationError
 from pypdf import PdfReader
 from tenacity import retry, retry_if_exception_type
+import mutagen
+from mutagen.easyid3 import EasyID3
 
 
 if sentry_dsn := os.getenv("SENTRY_DSN"):
@@ -45,6 +49,9 @@ class Dialogue(BaseModel):
     dialogue: List[DialogueItem]
 
 
+class TitleModel(BaseModel):
+    title: str
+
 def get_mp3(text: str, voice: str, api_key: str = None) -> bytes:
     client = OpenAI(
         api_key=api_key or os.getenv("OPENAI_API_KEY"),
@@ -66,9 +73,27 @@ def generate_audio(file: str, openai_api_key: str = None) -> bytes:
     if not (os.getenv("OPENAI_API_KEY") or openai_api_key):
         raise gr.Error("OpenAI API key is required")
 
+    text_for_title = None
+
     with Path(file).open("rb") as f:
         reader = PdfReader(f)
         text = "\n\n".join([page.extract_text() for page in reader.pages])
+
+        # Get text from first page for mp3 metadata
+        text_for_title = reader.pages[0].extract_text()
+    
+    @retry(retry=retry_if_exception_type(ValidationError))
+    @llm(
+        model="gpt-4o",
+    )
+    def generate_title(text: str) -> TitleModel:
+        """
+        Your task is to take the input text provided and generate a podcast title. The input text may be messy or unstructured, as it could come from the first page of a PDF. Don't worry about the formatting issues or any irrelevant information.
+        Here is the input text you will be working with:
+        <input_text>
+        {text}
+        </input_text>
+        """
 
     @retry(retry=retry_if_exception_type(ValidationError))
     @llm(
@@ -107,6 +132,7 @@ def generate_audio(file: str, openai_api_key: str = None) -> bytes:
         </podcast_dialogue>
         """
 
+    llm_title = generate_title(text_for_title)
     llm_output = generate_dialogue(text)
 
     audio = b""
@@ -140,6 +166,28 @@ def generate_audio(file: str, openai_api_key: str = None) -> bytes:
     )
     temporary_file.write(audio)
     temporary_file.close()
+
+    # Prepare permanent storage
+    podcast_storage_directory = "./podcast_storage/"
+    os.makedirs(podcast_storage_directory, exist_ok=True)
+    timestamp_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    yearmonth_string = datetime.datetime.now().strftime("%Y%m")
+    permanent_filename = f"podcast_{timestamp_str}.mp3"
+    permanent_file_path = os.path.join(podcast_storage_directory, permanent_filename)
+    shutil.copy(temporary_file.name, permanent_file_path)
+    logger.info(f"Copied to permanent file path: {permanent_file_path}")
+
+    # Add basic ID3 metadata
+    try:
+        audio_tags = EasyID3(permanent_file_path)
+    except mutagen.id3.ID3NoHeaderError:
+        audio_tags = EasyID3()
+        audio_tags.save(permanent_file_path)
+        audio_tags = EasyID3(permanent_file_path)
+    audio_tags["title"] = llm_title.title or f"Podcast Episode {timestamp_str}"
+    audio_tags["artist"] = "arrow-marked-babbler"
+    audio_tags["album"] = yearmonth_string
+    audio_tags.save()
 
     # Delete any files in the temp directory that end with .mp3 and are over a day old
     for file in glob.glob(f"{temporary_directory}*.mp3"):
